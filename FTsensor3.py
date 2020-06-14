@@ -318,8 +318,9 @@ def binary_2_counts(binary_msg):
 
 
 if __name__ == '__main__':
-    """ Test functionality and kalman filtering """
+    """ Test functionality """
     from optparse import OptionParser
+	import time
     parser = OptionParser()
     parser.add_option('--mode', action='store', default='run', type='string',
                       dest='mode', help='either "test" or "run"')
@@ -332,167 +333,23 @@ if __name__ == '__main__':
         print(f"Fx: {'%.2f' % (forces[0]/40 + forces[1]/40)} N, Fy: {'%.2f' % (forces[2]/40 + forces[3]/40)} N, Fz: {'%.2f' % (forces[4]/40 + forces[5]/40)} N, "
               f"Tx: {'%.2f' % (forces[6]/333.33 + forces[7]/333.33)} Nm, Ty: {'%.2f' % (forces[8]/333.33 + forces[9]/333.33)} Nm, Tz: {'%.2f' % (forces[10]/333.33 + forces[11]/333.33)} Nm")
     else:
-        import matplotlib.pyplot as plt
-        import KalmanFilter
-        import numpy as np
-        import keyboard
         daq = Sensor('COM1', mode='ascii')  # for linux probably /dev/ttyUSB0, use dmesg | grep tty to find the port
-        fx, fy, fz, tx, ty, tz, sum_time = [], [], [], [], [], [], []
-        ex = KalmanFilter.initialise(force_torque=True)  # Initialize Kalman Filter
-        forces_p, torques_p = ex, ex  # estimate of initial position variance (covariance matrix)
-        cc = 0
-        row = ''
-        frequency = 50  # Hz
-        Limit = frequency * 200
-        kalmanStart = True
-        kalman_forces = [[0 for x in range(3)] for y in range(Limit)]
-        kalman_torques = [[0 for x in range(3)] for y in range(Limit)]
-        d_kalman = [[0 for x in range(3)] for y in range(Limit)]
-        start_time = time.time()
+		start_time = time.time()
         while True:
             try:
                 _msg = daq.read()
                 forces = daq.counts_2_force_torque(_msg)
 
-                if kalmanStart:
-
-                    if cc == 0:
-                        forces_q_estimate = np.array([[forces[0]], [forces[1]], [forces[2]], [forces[3]], [forces[4]], [forces[5]]])
-                        torques_q_estimate = np.array([[forces[3]], [forces[4]], [forces[5]], [forces[0]], [forces[1]], [forces[2]]])
-
-                    forces_loc_meas = np.array([[forces[0]], [forces[1]], [forces[2]]])
-                    torques_loc_meas = np.array([[forces[3]], [forces[4]], [forces[5]]])
-                    forces_q_estimate, forces_p = KalmanFilter.estimate(forces_p, forces_loc_meas, forces_q_estimate, force_torque=True)
-                    torques_q_estimate, torques_p = KalmanFilter.estimate(torques_p, torques_loc_meas, torques_q_estimate, force_torque=True)
-
-                    kalman_forces[cc] = [forces_q_estimate[0], forces_q_estimate[1], forces_q_estimate[2]]
-                    kalman_torques[cc] = [torques_q_estimate[0], torques_q_estimate[1], torques_q_estimate[2]]
-
-                fx.append(forces[0])
-                fy.append(forces[1])
-                fz.append(forces[2])
-                tx.append(forces[3])
-                ty.append(forces[4])
-                tz.append(forces[5])
-                sum_time.append(1 / frequency * cc)
-
-                if cc == 0:
-                    x = 0.0
-                    y = 0.0
-                    z = 0.0
-                else:
-                    x = (kalman_forces[cc][0] - kalman_forces[cc - 1][0])
-                    y = (kalman_forces[cc][1] - kalman_forces[cc - 1][1])
-                    z = (kalman_forces[cc][2] - kalman_forces[cc - 1][2])
-
-                d_kalman[cc] = [x, y, z]
-                # print(f"Fz: {'%.2f' % (forces[2])}")
-                if forces[2] >= 10:
-                    _ = 0
-
                 print(f"Fx: {'%.3f' % (forces[0])} N, Fy: {'%.3f' % (forces[1])} N, Fz: {'%.3f' % (forces[2])} N, "
                       f"Tx: {'%.3f' % (forces[3])} Nm, Ty: {'%.3f' % (forces[4])} Nm, Tz: {'%.3f' % (forces[5])} Nm")
 
-                # print(f'Biased: {daq._bias}')
+				# Bias Sensor
+				if time.time() - start_time <= 5:
+					forces = daq.counts_2_force_torque(_msg, unbiased=True)
+					daq.sensor_bias(forces)
+					print(f'Biased: {daq._bias}')
 
-                # print(f"Fx: {'%.2f' % (forces[0])} N, Fy: {'%.2f' % (forces[1])} N, Fz: {'%.2f' % (forces[2])} N, "
-                #       f"Tx: {'%.2f' % (forces[3])} Nm, Ty: {'%.2f' % (forces[4])} Nm, Tz: {'%.2f' % (forces[5])} Nm")
-
-                """
-                print(f"Fx: {'%.3f' % (kalman_forces[cc][0])} N, Fy: {'%.3f' % (kalman_forces[cc][1])} N, Fz: {'%.3f' % (kalman_forces[cc][2])} N, "
-                      f"Tx: {'%.3f' % (kalman_torques[cc][0])} Nm, Ty: {'%.3f' % (kalman_torques[cc][1])} Nm, Tz: {'%.3f' % (kalman_torques[cc][2])} Nm")
-                """
-
-                # print(x, y, z)
-
-                if keyboard.is_pressed('q') or cc == 10:
-                    # Bias Sensor
-                    forces = daq.counts_2_force_torque(_msg, unbiased=True)
-                    daq.sensor_bias(forces)
-                    print(f'Biased: {daq._bias}')
-
-                # Restrict frequency to match kinect frames (30 fps)
+                # Restrict frequency (30 Hz)
                 # time.sleep(1.0 / frequency - ((time.time() - start_time) % 1.0 / frequency))
-                cc += 1
-
-                if cc == Limit:
-                    """
-                    fig, axs = plt.subplots(3, sharex='all', gridspec_kw={'hspace': 0.4})
-                    line_labels = ["Kalman Values"]
-    
-                    l1 = axs[0].plot(sum_time, [item[0] for item in kalman_forces], 'b-', linewidth=2)
-                    axs[0].set_title('X AXIS', fontweight='bold')
-                    l2 = axs[1].plot(sum_time, [item[1] for item in kalman_forces], 'b-', linewidth=2)
-                    axs[1].set_title('Y AXIS', fontweight='bold')
-                    l3 = axs[2].plot(sum_time, [item[2] for item in kalman_forces], 'b-', linewidth=2)
-                    axs[2].set_title('Z AXIS', fontweight='bold')
-    
-                    fig.legend([l1, l2, l3],  # The line objects
-                               labels=line_labels,  # The labels for each line
-                               loc="lower right",  # Position of legend
-                               borderaxespad=0.1,  # Small spacing around legend box
-                               prop={'weight': 'bold'}  # Bold letters
-                               )
-    
-                    fig.text(0.5, 0.04, 'Time (sec)', ha='center', fontweight='bold')  # X Axis label
-                    fig.text(0.04, 0.5, 'Forces (N)', va='center', rotation='vertical', fontweight='bold')  # Y Axis label
-    
-                    # Hide x labels and tick labels for all but bottom plot.
-                    for ax in axs:
-                        ax.label_outer()
-    
-                    """
-
-                    fig, axs = plt.subplots(3, sharex='all', gridspec_kw={'hspace': 0.4})
-                    line_labels = ["ATI FT Values", "Kalman Values"]
-
-                    l1 = axs[0].plot(sum_time, fx, 'r-', sum_time, [item[0] for item in kalman_forces], 'b-', linewidth=2)
-                    axs[0].set_title('X AXIS', fontweight='bold')
-                    l2 = axs[1].plot(sum_time, fy, 'r-', sum_time, [item[1] for item in kalman_forces], 'b-', linewidth=2)
-                    axs[1].set_title('Y AXIS', fontweight='bold')
-                    l3 = axs[2].plot(sum_time, fz, 'r-', sum_time, [item[2] for item in kalman_forces], 'b-', linewidth=2)
-                    axs[2].set_title('Z AXIS', fontweight='bold')
-
-                    fig.legend([l1, l2, l3],  # The line objects
-                               labels=line_labels,  # The labels for each line
-                               loc="lower right",  # Position of legend
-                               borderaxespad=0.1,  # Small spacing around legend box
-                               prop={'weight': 'bold'}  # Bold letters
-                               )
-
-                    fig.text(0.5, 0.04, 'Time (sec)', ha='center', fontweight='bold')  # X Axis label
-                    fig.text(0.04, 0.5, 'Forces (N)', va='center', rotation='vertical', fontweight='bold')  # Y Axis label
-
-                    # Hide x labels and tick labels for all but bottom plot.
-                    for ax in axs:
-                        ax.label_outer()
-
-                    _fig, _axs = plt.subplots(3, sharex='all', gridspec_kw={'hspace': 0.4})
-                    _line_labels = ["ATI FT Values", "Kalman Values"]
-
-                    _l1 = _axs[0].plot(sum_time, tx, 'r-', sum_time, [item[0] for item in kalman_torques], 'b-', linewidth=2)
-                    _axs[0].set_title('X AXIS', fontweight='bold')
-                    _l2 = _axs[1].plot(sum_time, ty, 'r-', sum_time, [item[1] for item in kalman_torques], 'b-', linewidth=2)
-                    _axs[1].set_title('Y AXIS', fontweight='bold')
-                    _l3 = _axs[2].plot(sum_time, tz, 'r-', sum_time, [item[2] for item in kalman_torques], 'b-', linewidth=2)
-                    _axs[2].set_title('Z AXIS', fontweight='bold')
-
-                    _fig.legend([_l1, _l2, _l3],  # The line objects
-                                labels=_line_labels,  # The labels for each line
-                                loc="lower right",  # Position of legend
-                                borderaxespad=0.1,  # Small spacing around legend box
-                                prop={'weight': 'bold'}  # Bold letters
-                                )
-
-                    _fig.text(0.5, 0.04, 'Time (sec)', ha='center', fontweight='bold')  # X Axis label
-                    _fig.text(0.04, 0.5, 'Torques (Nm)', va='center', rotation='vertical', fontweight='bold')  # Y Axis label
-
-                    # Hide x labels and tick labels for all but bottom plot.
-                    for ax in _axs:
-                        ax.label_outer()
-
-                    plt.show()
-                    break
-
             except Exception as e:
                 print(e)
