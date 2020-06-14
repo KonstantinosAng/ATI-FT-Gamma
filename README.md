@@ -12,14 +12,14 @@ Python files to read and pull data from the ATI FT Cotroller and the ATI Force T
 	from FTsensor3 import Sensor
 	daq = Sensor('COM1', mode='ascii')  # for linux probably /dev/ttyUSB0, use dmesg | grep tty to find the port
     	while True:
-        	try:
-            		msg = daq.read()
-            		forces = daq.counts_2_force_torque(msg)
-            			print("Fx: {} N, Fy: {} N, Fz: {} N, Tx: {} Nm, Ty: {} Nm, Tz: {} Nm".format('%.3f' % forces[0], '%.3f' % forces[1], '%.3f' % forces[2], '%.3f' % forces[3], '%.3f' % forces[4], '%.3f' % forces[5]))
-           		 # Restrict frequency (30 Hz)
-            		# time.sleep(1.0/30.0 - ((time.time() - start_time) % 1.0/30.0))
-        	except Exception as e:
-            		print(e)
+            try:
+                msg = daq.read()
+            	forces = daq.counts_2_force_torque(msg)
+            	print("Fx: {} N, Fy: {} N, Fz: {} N, Tx: {} Nm, Ty: {} Nm, Tz: {} Nm".format('%.3f' % forces[0], '%.3f' % forces[1], '%.3f' % forces[2], '%.3f' % forces[3], '%.3f' % forces[4], '%.3f' % forces[5]))
+           	# Restrict frequency (30 Hz)
+            	# time.sleep(1.0/30.0 - ((time.time() - start_time) % 1.0/30.0))
+            except Exception as e:
+            	print(e)
 	```
 3. The Sensor class takes two arguments:
 	- port: string with the connected port of the Cotroller (for Windows COM1 to COM6 and for linux /dev/ttyUSB0).
