@@ -21,6 +21,6 @@ Python files to read and pull data from the ATI FT Cotroller. Can be used with p
         	except Exception as e:
             		print(e)
 	```
-	The Sensor class takes two arguments:
-	-port: string with the connected port of the Cotroller (for Windows COM1 to COM6 and for linux /dev/ttyUSB0)
+3. The Sensor class takes two arguments:
+	-port: string with the connected port of the Cotroller (for Windows COM1 to COM6 and for linux /dev/ttyUSB0).
 	For Linux use dmesg | grep tty to see where the ATI Controller is connected to. For Windows open the device manager and go to Port (COM & LPT) to find in which port the  ATI Controller is connected to.
